@@ -127,14 +127,14 @@ define(['require', './normalize'], function(req, normalize) {
       
       var outPath = config.appDir ? config.baseUrl + data.name + '.css' : config.out.replace(/\.js$/, '.css');
       
-      saveFile(outPath, compress(css));
+      saveFile(outPath, config.compressCSS ? compress(css) : css);
     }
     else {
       if (css == '')
         return;
       write(
         "(function(c){var d=document,a='appendChild',i='styleSheet',s=d.createElement('style');s.type='text/css';d.getElementsByTagName('head')[0][a](s);s[i]?s[i].cssText=c:s[a](d.createTextNode(c));})\n"
-        + "('" + escape(compress(css)) + "');\n"
+        + "('" + escape(config.compressCSS ? compress(css) : css) + "');\n"
       );
     }
     
