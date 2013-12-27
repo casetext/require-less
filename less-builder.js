@@ -2,11 +2,11 @@ define(['require', './normalize'], function(req, normalize) {
   var lessAPI = {};
 
   var isWindows = !!process.platform.match(/^win/);
-  
+
   var baseParts = req.toUrl('base_url').split('/');
   baseParts[baseParts.length - 1] = '';
   var baseUrl = baseParts.join('/');
-  
+
   function compress(css) {
     if (typeof process !== "undefined" && process.versions && !!process.versions.node && require.nodeRequire) {
       try {
@@ -32,7 +32,7 @@ define(['require', './normalize'], function(req, normalize) {
     else {
       var content = new java.lang.String(data);
       var output = new java.io.BufferedWriter(new java.io.OutputStreamWriter(new java.io.FileOutputStream(path), 'utf-8'));
-  
+
       try {
         output.write(content, 0, content.length());
         output.flush();
@@ -68,7 +68,7 @@ define(['require', './normalize'], function(req, normalize) {
   }
 
   var absUrlRegEx = /^([^\:\/]+:\/)?\//;
-  
+
   lessAPI.load = function(name, req, load, _config) {
     //store config
     config = config || _config;
@@ -85,48 +85,48 @@ define(['require', './normalize'], function(req, normalize) {
     var fileUrl = req.toUrl(name + '.less');
 
     //add to the buffer
-    var parser = new less.Parser({
-      paths: [baseUrl],
-      filename: fileUrl,
-      async: false,
-      syncImport: true
-    });
-    parser.parse('@import (multiple) "' + path.relative(baseUrl, fileUrl) + '";', function(err, tree) {
-      if (err) {
-        console.log(err + ' at ' + path.relative(baseUrl, err.filename) + ', line ' + err.line);
-        return load.error(err);
-      }
-
-      var css = tree.toCSS(config.less);
-
-      // normalize all imports relative to the siteRoot, itself relative to the output file / output dir
-      lessBuffer[name] = normalize(css, isWindows ? fileUrl.replace(/\\/g, '/') : fileUrl, siteRoot);
-
-      load();
-    });
+    lessBuffer[name] = '@import "' + path.relative(baseUrl, fileUrl) + '";\n';
+    load();
   }
 
   var layerBuffer = [];
-  
+
   lessAPI.write = function(pluginName, moduleName, write) {
     if (moduleName.match(absUrlRegEx))
       return load();
-    
+
     layerBuffer.push(lessBuffer[moduleName]);
-    
+
     write.asModule(pluginName + '!' + moduleName, 'define(function(){})');
   }
-  
+
   lessAPI.onLayerEnd = function(write, data) {
-    
+
     //calculate layer css
-    var css = layerBuffer.join('');
-    
+    var lessData = layerBuffer.join(''),
+    css;
+
+    var parser = new less.Parser({
+      paths: [baseUrl],
+      async: false,
+      syncImport: true
+    });
+
+    parser.parse(lessData, function(err, tree) {
+      if (err) {
+        throw new Error(err + ' at ' + path.relative(baseUrl, err.filename) + ', line ' + err.line);
+      }
+      
+      css = normalize(tree.toCSS(config.less), isWindows ? baseUrl.replace(/\\/g, '/') : baseUrl, siteRoot);
+    });
+    // block until less is done
+    do {} while (css === undefined);
+
     if (config.separateCSS) {
       console.log('Writing CSS! file: ' + data.name + '\n');
-      
+
       var outPath = config.appDir ? config.baseUrl + data.name + '.css' : config.out.replace(/\.js$/, '.css');
-      
+
       saveFile(outPath, config.compressCSS ? compress(css) : css);
     }
     else {
@@ -137,10 +137,10 @@ define(['require', './normalize'], function(req, normalize) {
         + "('" + escape(config.compressCSS ? compress(css) : css) + "');\n"
       );
     }
-    
+
     //clear layer buffer for next layer
     layerBuffer = [];
   }
-  
+
   return lessAPI;
 });
